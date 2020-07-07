@@ -1,16 +1,8 @@
 from datetime import datetime
-
-from models.base import buildAccuracyScalar
-import matplotlib.pyplot as plt
 import tensorflow as tf
 import numpy as np
-from scipy.spatial import distance
-from sklearn.metrics import confusion_matrix
-import itertools
 import tensorflow.contrib.slim as slim
 from tensorflow.python.ops import nn_ops
-from tensorflow.python.ops import math_ops
-from tensorflow.contrib import layers
 
 flags = tf.app.flags
 FLAGS = flags.FLAGS
@@ -26,7 +18,6 @@ class Trainer(object):
         self.model_2 = model_2
         self.model_transfer = model_transfer
         self.logger = logger
-        
         self.display_freq = display_freq
         self.learning_rate = learning_rate
         self.num_classes = num_classes
@@ -34,11 +25,10 @@ class Trainer(object):
         self.nr_frames = nr_frames
         self.temporal_pooling = temporal_pooling
         self.acoustic = False
-        # # Extract input model shape
+        # Extract input model shape
         self.shape_1 = [self.model_1.height, self.model_1.width, self.model_1.channels]
         self.shape_2 = [self.model_2.height, self.model_2.width, self.model_2.channels]
-        self.transfer_shape = [self.model_transfer.height, self.model_transfer.width,
-                                        self.model_transfer.channels]
+        self.transfer_shape = [self.model_transfer.height, self.model_transfer.width, self.model_transfer.channels]
         self.alpha = FLAGS.alpha
         
     def _build_functions(self, data):
@@ -52,19 +42,12 @@ class Trainer(object):
         audio_data, video_data, acoustic_data, labels, scenario = self._retrieve_batch(next_batch)
         self.labels = tf.argmax(labels, axis=1)
         self.scenario = tf.argmax(scenario, axis=1)
-        # generate random couples
-        # positive_outputANDnegative_output = self.mix_data(acoustic_data)
-        # labels are a placeholder but we compute an array with shuffle_data then given as input
-        # shuffle pairs
-        # input_video, input_acoustic = self.shuffle_data( anchor_output, positive_output, negative_output)
         # build model with tensor data next batch
         with tf.device('/gpu:0'):
             self.model_2._build_model(audio_data)
             self.model_transfer._build_model(acoustic_data) # positive_outputANDnegative_output
         with tf.device('/gpu:1'):
             self.model_1._build_model(video_data)
-        # find logits after defining next batch and iterator
-        
         # temporal pooling gives one predition for nr_frames, if it is not we have one predicition for frame
         expanded_shape = [-1, self.nr_frames, 12, 16, self.num_classes]
         logits_1 = tf.reduce_mean(tf.reshape(self.model_1.output, shape=expanded_shape), axis=1)
@@ -85,29 +68,10 @@ class Trainer(object):
         # expand dims to have all combinations of audio and video
         logits_audio_infl = tf.expand_dims(logits_2_reshape, 1)
         logits_video_infl = tf.expand_dims(logits_1, 0)
-        # Define contrastive loss after having logits
-        # compute video anchor, positive and negative audio
-        
         # inner product between frame feature map and positive audio
         innerdot = logits_audio_infl * logits_video_infl  # order matters!!!!
-        # innerdot = tf.reduce_sum(innerdot, -1, keep_dims=True)
-        # attentionlogits = tf.reshape(innerdot, [-1, 12, 16, 1])
-        # attentionlogits = layers.conv2d(
-        #     attentionlogits, 1, [3, 3], stride=1, padding='same', activation_fn=None, scope='attention_logits')
-        # self.train_vars_attention = slim.get_trainable_variables('attention_logits')  # possibly empty
-        # att_map = tf.nn.softmax(tf.reshape(attentionlogits, [-1, 12 * 16]))
-        self.attention_map = tf.reshape(tf.reduce_sum(innerdot, -1, keep_dims=True), [-1, 12, 16, 1])
-        # attention_map = tf.reshape(self.attention_map, [tf.shape(logits_1)[0], tf.shape(logits_1)[0], 12, 16, 1])
-        # innerdot = logits_1 * logits_2_reshape
-        # innerdot = tf.reduce_sum(innerdot, 3)
-        # make weighted summation of video map by attention map to obtain self.num_classes vector
-        
-        # innerdot = tf.expand_dims(innerdot, axis=3)
-        
-        # reply video to multiply attention map for each video
+        # reply video to multiply inner dot for each video
         video_repl = tf.tile(tf.expand_dims(logits_1, 0), [tf.shape(logits_1)[0], 1, 1, 1, 1])
-        # product = innerdot * logits_1
-        # product2 = innerdot*logits_2_reshape
         product = innerdot * video_repl
         # sum along 12 16
         videoweighted = tf.reduce_sum(product, [2, 3])
@@ -117,13 +81,7 @@ class Trainer(object):
                                  [1, tf.shape(logits_1)[0], 1])
         self.productvectnorm = tf.nn.l2_normalize(videoweighted, dim=-1)
         self.productvectnorm2 = tf.nn.l2_normalize(audio_repl_sum, dim=-1)
-        # max instead sum
-        # videoweighted = tf.reduce_sum(product, axis=[1, 2])
-        # audioweighted = tf.reduce_sum(logits_2_reshape, axis=[1, 2])nv
-        # videoweighted = tf.squeeze(videoweighted, axis=[1, 2])
-        
         # triplet loss between inner product, positive and negative audio
-        # remove if using random couples
         self.tripletloss, _ = tf.cond(self.epoch > 3,
                                       lambda: self.mix_data_hard(self.productvectnorm, self.productvectnorm2,
                                                                  self.labels, self.scenario,
@@ -138,8 +96,6 @@ class Trainer(object):
                                                          self.scenario, FLAGS.margin, 1),
                                               lambda: self.mix_all(self.audio, self.transfer, self.labels,
                                                          self.scenario, FLAGS.margin, 1))
-        # self.l1_loss = tf.reduce_sum(tf.abs(attentionlogits))
-        # self.reg_strength = 0.1
         self.loss = (1-self.alpha)*self.tripletloss + self.alpha*self.tripletlossacoustic + tf.losses.get_regularization_loss()  # + self.reg_strength*self.l1_loss
         # compute prediction if distance neg is greater than positive plus margin
         
@@ -167,12 +123,6 @@ class Trainer(object):
         # Initialize model saver
         self.saver = tf.train.Saver(max_to_keep=None)
         return iterat
-    
-    def triplet_loss(self, anchor_output, positive_output, negative_output, margin=0.2):
-        d_pos = tf.reduce_sum(tf.square(anchor_output - positive_output), 1)
-        d_neg = tf.reduce_sum(tf.square(anchor_output - negative_output), 1)
-        loss = tf.maximum(0., margin + d_pos - d_neg)
-        return tf.reduce_mean(loss)
     
     def _get_optimizer_variables(self, optimizer):
         
@@ -247,13 +197,6 @@ class Trainer(object):
         train_iterat = self._build_functions(train_data)
         eval_iterat = valid_data.data.make_initializable_iterator()
         # Add the variables we train to the summary
-        # for var in self.model.train_vars:
-        #     self.logger.log_histogram(var.name, var)
-        
-        # # Disable image logging
-        # self.logger.log_image('input', self.model.network['input'])
-        # self.logger.log_sound('input', self.model.network['input'])
-        # # Log attention map
         self.logger.log_scalar('triplet_loss', self.tripletloss)
         self.logger.log_scalar('triplet_lossacoustic', self.tripletlossacoustic)
         self.logger.log_scalar('train_loss', self.loss)
@@ -591,12 +534,6 @@ class Trainer(object):
                                self.model_1.network['keep_prob']: 1.0,
                                self.model_2.network['keep_prob']: 1.0})
                 
-                # concatenate labels
-                # labels1 = np.squeeze(labels_data)
-                # label = np.concatenate([label, labels1], axis=0)
-                # concatenate predictions computed as squared distance 0 greater than squared distance 1 + margin
-                # batch_pred1 = np.squeeze(batch_pred)
-                # pred = np.concatenate((pred, batch_pred1), axis=0)
                 batch_accuracy = 1.0 - batch_accuracy
                 # Update counters
                 data_set_size += np.shape(labels_data)[0]  # 1 labels_data.shape[0]
@@ -609,31 +546,12 @@ class Trainer(object):
         # print (accuracy_sum)
         total_loss = loss_sum / float(data_set_size)
         total_accuracy = accuracy_sum / float(data_set_size)
-        # if mod == 'test':
-        #     self.plot_confusion_matrix(pred, label)
         return total_loss, total_accuracy
-    
-    def compute_class(self, anchor, positive, negative):
-        difference = tf.subtract(anchor, positive)
-        square = tf.square(difference)
-        sum = tf.reduce_sum(square, axis=1, keep_dims=True)
-        
-        difference2 = tf.subtract(anchor, negative)
-        square2 = tf.square(difference2)
-        sum2 = tf.reduce_sum(square2, axis=1, keep_dims=True)
-        
-        # distance = tf.sqrt(sum)
-        margintensor = tf.convert_to_tensor(FLAGS.margin, dtype=tf.float32)
-        # distance neg > distance pos + margin means 1
-        gr = tf.greater(sum2, margintensor + sum)
-        pred = tf.to_int32(gr)
-        return pred
     
     def _retrieve_batch(self, next_batch):
         
-        acoustic_tr_data = tf.reshape(next_batch[0],
-                                      shape=[-1, self.transfer_shape[0], self.transfer_shape[1],
-                                             self.transfer_shape[2]])  # , dtype=tf.float32
+        acoustic_tr_data = tf.reshape(next_batch[0], shape=[-1, self.transfer_shape[0], self.transfer_shape[1],
+                                             self.transfer_shape[2]])
         video_data = tf.reshape(next_batch[2], shape=[-1, self.shape_1[0], self.shape_1[1], self.shape_1[2]])
         acoustic_data = tf.reshape(next_batch[1],
                                    shape=[-1, self.shape_2[0], self.shape_2[1], self.shape_2[2]])
@@ -663,48 +581,3 @@ class Trainer(object):
                                                                               test_loss, test_accuracy))
         
         return test_loss, test_accuracy
-    
-    def plot_confusion_matrix(self, pred, label, normalize=True,
-                              title='Confusion matrix'):
-        """
-        This function prints and plots the confusion matrix.
-        Normalization can be applied by setting `normalize=True`.
-        """
-        counter = 0
-        cmap = plt.cm.Blues
-        cm = confusion_matrix(label, pred)
-        percentage2 = label.shape[0]
-        for i in range(percentage2):
-            if (pred[i] == label[i]):
-                counter += 1
-        
-        perc = counter / float(percentage2)
-        print(perc)
-        classes = ['False', 'True']
-        if normalize:
-            cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
-            print("Normalized confusion matrix")
-        else:
-            print('Confusion matrix, without normalization')
-        
-        print(cm)
-        # cmap = plt.cm.get_cmap('Blues')
-        plt.imshow(cm, interpolation='nearest', cmap=cmap)
-        plt.title(title)
-        plt.colorbar()
-        tick_marks = np.arange(len(classes))
-        plt.xticks(tick_marks, classes, rotation=90)
-        plt.yticks(tick_marks, classes)
-        
-        fmt = '.2f' if normalize else 'd'
-        thresh = cm.max() / 2.
-        for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
-            plt.text(j, i, format(cm[i, j], fmt),
-                     horizontalalignment="center",
-                     color="white" if cm[i, j] > thresh else "black")
-        
-        plt.ylabel('True label')
-        plt.xlabel('Predicted label')
-        plt.tight_layout()
-        plt.show()
-        # plt.savefig('/data/vsanguineti/confusion_matrix_hearnet_transfer.png')
