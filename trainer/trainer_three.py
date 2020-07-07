@@ -1,9 +1,6 @@
 from datetime import datetime
-import matplotlib.pyplot as plt
 import tensorflow as tf
 import numpy as np
-from sklearn.metrics import confusion_matrix
-import itertools
 import tensorflow.contrib.slim as slim
 from tensorflow.python.ops import nn_ops
 
@@ -534,13 +531,7 @@ class Trainer(object):
                                self.model_2.network['is_training']: 0,
                                self.model_1.network['keep_prob']: 1.0,
                                self.model_2.network['keep_prob']: 1.0})
-                
-                # concatenate labels
-                # labels1 = np.squeeze(labels_data)
-                # label = np.concatenate([label, labels1], axis=0)
-                # concatenate predictions computed as squared distance 0 greater than squared distance 1 + margin
-                # batch_pred1 = np.squeeze(batch_pred)
-                # pred = np.concatenate((pred, batch_pred1), axis=0)
+
                 batch_accuracy = 1.0 - batch_accuracy
                 # Update counters
                 data_set_size += np.shape(labels_data)[0]  # 1 labels_data.shape[0]
@@ -553,8 +544,6 @@ class Trainer(object):
         # print (accuracy_sum)
         total_loss = loss_sum / float(data_set_size)
         total_accuracy = accuracy_sum / float(data_set_size)
-        # if mod == 'test':
-        #     self.plot_confusion_matrix(pred, label)
         return total_loss, total_accuracy
     
     def _retrieve_batch(self, next_batch):
@@ -595,48 +584,3 @@ class Trainer(object):
                                                                               test_loss, test_accuracy))
         
         return test_loss, test_accuracy
-    
-    def plot_confusion_matrix(self, pred, label, normalize=True,
-                              title='Confusion matrix'):
-        """
-        This function prints and plots the confusion matrix.
-        Normalization can be applied by setting `normalize=True`.
-        """
-        counter = 0
-        cmap = plt.cm.Blues
-        cm = confusion_matrix(label, pred)
-        percentage2 = label.shape[0]
-        for i in range(percentage2):
-            if (pred[i] == label[i]):
-                counter += 1
-        
-        perc = counter / float(percentage2)
-        print(perc)
-        classes = ['False', 'True']
-        if normalize:
-            cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
-            print("Normalized confusion matrix")
-        else:
-            print('Confusion matrix, without normalization')
-        
-        print(cm)
-        # cmap = plt.cm.get_cmap('Blues')
-        plt.imshow(cm, interpolation='nearest', cmap=cmap)
-        plt.title(title)
-        plt.colorbar()
-        tick_marks = np.arange(len(classes))
-        plt.xticks(tick_marks, classes, rotation=90)
-        plt.yticks(tick_marks, classes)
-        
-        fmt = '.2f' if normalize else 'd'
-        thresh = cm.max() / 2.
-        for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
-            plt.text(j, i, format(cm[i, j], fmt),
-                     horizontalalignment="center",
-                     color="white" if cm[i, j] > thresh else "black")
-        
-        plt.ylabel('True label')
-        plt.xlabel('Predicted label')
-        plt.tight_layout()
-        plt.show()
-        # plt.savefig('/data/vsanguineti/confusion_matrix_hearnet_transfer.png')
