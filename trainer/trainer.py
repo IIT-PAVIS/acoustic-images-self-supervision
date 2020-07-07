@@ -37,7 +37,7 @@ class Trainer(object):
         # give directly batch tensor depending on the network reshape
         in_data, self.labels = self._retrieve_batch(next_batch)
         self.model._build_model(in_data)
-        if (FLAGS.model == 'ResNet18_v1' or  FLAGS.model == 'ResNet50') and self.temporal_pooling:
+        if FLAGS.model == 'ResNet18_v1' and self.temporal_pooling:
             # temporal pooling gives one predition for nr_frames, if it is not we have one predicition for frame
             expanded_shape = [-1, self.nr_frames, self.num_classes]
             self.logits = tf.reduce_mean(tf.reshape(self.model.output, shape=expanded_shape), axis=1)
@@ -149,14 +149,7 @@ class Trainer(object):
         # Assert training and validation sets are not None
         assert train_data is not None
         assert valid_data is not None
-        
-        # Add the variables we train to the summary
-        # for var in self.model.train_vars:
-        #     self.logger.log_histogram(var.name, var)
-        
-        # # Disable image logging
-        # self.logger.log_image('input', self.model.network['input'])
-        # self.logger.log_sound('input', self.model.network['input'])
+
         train_iterat = self._build_functions(train_data)
         eval_iterat = valid_data.data.make_initializable_iterator()
         # Add the losses to summary
@@ -187,9 +180,6 @@ class Trainer(object):
             
             # For each epoch
             for epoch in range(start_epoch, start_epoch + self.num_epochs):
-                #make learning rate smaller every 3 epochs
-                #if epoch%3 == 0:
-                #    self.learning_rate = self.learning_rate/10
                 # Initialize counters and stats
                 step = 0
                 
@@ -199,45 +189,15 @@ class Trainer(object):
                 # For each mini-batch
                 while True:
                     try:
-                      
-                        
-                        # # Prepare batch
-                        # audio_data, video_data, labels_data = session.run([
-                        #     tf.reshape(next_batch[0],
-                        #                shape=[-1, self.audio_shape[1], self.audio_shape[2], self.audio_shape[3]]),
-                        #     tf.reshape(next_batch[2],
-                        #                shape=[-1, self.video_shape[1], self.video_shape[2], self.video_shape[3]]),
-                        #     tf.reshape(tf.tile(next_batch[3], [1, self.num_frames * self.train_data.sample_length]),
-                        #                shape=[-1, self.num_classes])
-                        # ])
                         
                         # Forward batch through the network
                         train_loss, train_accuracy, train_summary, _ = session.run([self.loss, self.accuracy, self.logger.summary_op, self.train_step], feed_dict={self.handle: train_handle,
                                                                 self.model.network['keep_prob']: 0.5,
                                                                 self.model.network['is_training']: 1})
                         
-                        # # Forward batch through the network
-                        # session.run(self.train_step, feed_dict={self.model.network['audio_input']: audio_data,
-                        #                                         self.model.network['video_input']: video_data,
-                        #                                         self.labels: labels_data,
-                        #                                         self.model.network['audio_is_training']: 1,
-                        #                                         self.model.network['video_is_training']: 1,
-                        #                                         self.model.network['audio_keep_prob']: 0.5,
-                        #                                         self.model.network['video_keep_prob']: 0.5})
-                        
                         # Compute mini-batch error
                         if step % self.display_freq == 0:
-                            
-                            # train_loss, train_accuracy, train_summary = session.run(
-                            #     [self.loss, self.accuracy, self.logger.summary_op],
-                            #     feed_dict={self.model.network['audio_input']: audio_data,
-                            #                self.model.network['video_input']: video_data,
-                            #                self.labels: labels_data,
-                            #                self.model.network['audio_is_training']: 0,
-                            #                self.model.network['video_is_training']: 0,
-                            #                self.model.network['audio_keep_prob']: 1.0,
-                            #                self.model.network['video_keep_prob']: 1.0})
-                            
+
                             print('{}: {} - Iteration: [{:3}]\t Training_Loss: {:6f}\t Training_Accuracy: {:6f}'.format(
                                 datetime.now(), FLAGS.exp_name, step, train_loss, train_accuracy))
                             
@@ -309,16 +269,7 @@ class Trainer(object):
         # For each mini-batch
         while True:
             try:
-                # # Prepare batch
-                # audio_data, video_data, labels_data = session.run([
-                #     tf.reshape(next_batch[0],
-                #                shape=[-1, self.audio_shape[1], self.audio_shape[2], self.audio_shape[3]], name='audio_reshaped'),
-                #     tf.reshape(next_batch[2],
-                #                shape=[-1, self.video_shape[1], self.video_shape[2], self.video_shape[3]], name='video_reshaped'),
-                #     tf.reshape(tf.tile(next_batch[3], [1, self.num_frames * self.test_data.sample_length]),
-                #                shape=[-1, self.num_classes], name='labels_reshaped')
-                # ])
-                
+
                 # Compute batch loss and accuracy
                 one_hot_labels, logits, batch_loss, batch_accuracy = session.run(
                     [self.labels, self.logits, self.loss, self.accuracy],
@@ -331,16 +282,7 @@ class Trainer(object):
                 # find argmax of logit
                 pred1 = np.argmax(logits, 1)
                 pred = np.concatenate((pred, pred1), axis=0)
-                
-                # # Compute batch loss and accuracy
-                # batch_loss, batch_accuracy = session.run([self.loss, self.accuracy],
-                #                                          feed_dict={self.model.network['audio_input']: audio_data,
-                #                                                     self.model.network['video_input']: video_data,
-                #                                                     self.labels: labels_data,
-                #                                                     self.model.network['audio_is_training']: 0,
-                #                                                     self.model.network['video_is_training']: 0,
-                #                                                     self.model.network['audio_keep_prob']: 1.0,
-                #                                                     self.model.network['video_keep_prob']: 1.0})
+
                 # Update counters
                 data_set_size += one_hot_labels.shape[0]
                 loss_sum += batch_loss * one_hot_labels.shape[0]
@@ -357,7 +299,7 @@ class Trainer(object):
     
     def _retrieve_batch(self, next_batch):
         
-        if FLAGS.model == 'ResNet50' or FLAGS.model == 'SeeNet' or FLAGS.model == 'ResNet18_v1':
+        if FLAGS.model == 'ResNet18_v1':
             data = tf.reshape(next_batch[2], shape=[-1, self.shape[0], self.shape[1], self.shape[2]])
             if self.temporal_pooling:
                 labels = tf.reshape(next_batch[3], shape=[-1, self.num_classes])
@@ -365,10 +307,7 @@ class Trainer(object):
                 # Replicate labels to match the number of frames
                 multiples = [1, self.nr_frames]
                 labels = tf.reshape(tf.tile(next_batch[3], multiples), shape=[-1, self.num_classes])
-        elif FLAGS.model == 'TemporalResNet50' or FLAGS.model == 'ResNet18':
-            data = tf.reshape(next_batch[2], shape=[-1, self.shape[0], self.shape[1], self.shape[2]])
-            labels = tf.reshape(next_batch[3], shape=[-1, self.num_classes])
-        elif FLAGS.model == 'DualCamNet' or FLAGS.model == 'DualCamHybridNet':
+        elif FLAGS.model == 'DualCamHybridNet':
             data = tf.reshape(next_batch[0], shape=[-1, self.shape[0], self.shape[1], self.shape[2]])
             if self.temporal_pooling:
                 labels = tf.reshape(next_batch[3], shape=[-1, self.num_classes])
@@ -457,7 +396,4 @@ class Trainer(object):
         plt.ylabel('True label')
         plt.xlabel('Predicted label')
         plt.tight_layout()
-        #plt.show()
-        # np.save('predictions_hearnet', pred)
-        # np.save('label_hearnet', label)
         plt.savefig('{}/{}'.format(FLAGS.checkpoint_dir, FLAGS.exp_name) + '/confusion_matrix.png')
