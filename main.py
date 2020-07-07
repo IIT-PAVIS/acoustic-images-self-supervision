@@ -12,8 +12,7 @@ from dataloader.actions_data import ActionsDataLoader as DataLoader
 
 flags = tf.app.flags
 flags.DEFINE_string('mode', None, 'Execution mode, it can be either \'train\' or \'test\'')
-flags.DEFINE_string('model', None, 'Model type, it can be one of \'SeeNet\', \'ResNet50\', \'TemporalResNet50\', '
-                                   '\'DualCamNet\', \'DualCamHybridNet\', \'SoundNet5\', or \'HearNet\'')
+flags.DEFINE_string('model', None, 'Model type, it can be one of  \'ResNet18_v1\', \'DualCamHybridNet\',  or \'HearNet\'')
 flags.DEFINE_string('train_file', None, 'Path to the plain text file for the training set')
 flags.DEFINE_string('valid_file', None, 'Path to the plain text file for the validation set')
 flags.DEFINE_string('test_file', None, 'Path to the plain text file for the testing set')
@@ -27,28 +26,24 @@ flags.DEFINE_float('learning_rate', 0.001, 'Learning rate')
 flags.DEFINE_integer('display_freq', 1, 'How often must be shown training results')
 flags.DEFINE_integer('num_epochs', 100, 'Number of iterations through dataset')
 flags.DEFINE_integer('total_length', 30, 'Length in seconds of a full sequence')
-#sample length is 1 s for dualcamnet and 5 s for hearnet and soundnet
+#sample length is 2 s
 flags.DEFINE_integer('sample_length', 1, 'Length in seconds of a sequence sample')
-#number of crops 30 for 1 s and 6 for 5 s
+#number of crops 30 for 1 s
 flags.DEFINE_integer('number_of_crops', 30, 'Number of crops')
 flags.DEFINE_integer('buffer_size', 1, 'Size of pre-fetch buffer')
 flags.DEFINE_string('tensorboard', None, 'Directory for storing logs')
 flags.DEFINE_string('checkpoint_dir', None, 'Directory for storing models')
 flags.DEFINE_integer('temporal_pooling', 1, 'Flag to indicate whether to use average pooling over time')
 flags.DEFINE_integer('embedding', 1, 'Say if you are training 128 vectors')
-flags.DEFINE_string('model_1', None, 'Model type, it can be one of \'ResNet18_v1\', \'ResNet18\', \'ResNet50\', \'TemporalResNet50\' \'DualCamNet\', \'DualCamHybridNet\', ')
-flags.DEFINE_string('model_2', None, 'Model type, it can be one of \'DualCamNet\', \'DualCamHybridNet\', \'SoundNet5\', or \'HearNet\'')
+flags.DEFINE_string('model_1', None, 'Model type, it can be one of \'ResNet18_v1\', \'DualCamHybridNet\', ')
+flags.DEFINE_string('model_2', None, 'Model type, it can be one of \'DualCamHybridNet\', \'HearNet\'')
 flags.DEFINE_float('margin', 0.2, 'margin') # between 0 and 11 for 128 vector
 flags.DEFINE_integer('transfer', 0, 'Say if you are doing transfer')
 flags.DEFINE_integer('distillation', 0, 'Say if you are doing distillation')
 # in temporal models TemporalResNet50 and ResNet18
 flags.DEFINE_integer('block_size', 1, 'Number of frames to pick randomly for each second') #12
-flags.DEFINE_string('loss', 'Triplet', 'Loss type, it can be one of \'Triplet\', \'Contrastive\'')
+flags.DEFINE_string('loss', 'Triplet', 'Loss type, it can be one of \'Triplet\'')
 flags.DEFINE_integer('num_class', 128, 'Classes')
-# Disable number of channels
-# flags.DEFINE_integer('num_channels', 512, 'Number of channels from the acoustic images')
-# Disable version
-# flags.DEFINE_integer('version', None, 'Network version')
 flags.DEFINE_float('alpha', 0.1, 'How much weighting the loss')
 FLAGS = flags.FLAGS
 
@@ -67,7 +62,7 @@ def main(_):
     # random_pick = (FLAGS.model == 'TemporalResNet50' or FLAGS.model_1 == 'TemporalResNet50') or (FLAGS.model == 'ResNet18' or FLAGS.model_1 == 'ResNet18')
     # if we are randomly picking total number of frames, we can set random pick to False
     nr_frames = FLAGS.block_size * FLAGS.sample_length
-    if (FLAGS.model == 'ResNet18_v1' or FLAGS.model == 'ResNet50' or FLAGS.model_1 == 'ResNet18_v1' or FLAGS.model_1 == 'ResNet50') and nr_frames < 12*FLAGS.sample_length:
+    if (FLAGS.model == 'ResNet18_v1' or FLAGS.model_1 == 'ResNet18_v1') and nr_frames < 12*FLAGS.sample_length:
         random_pick = True
     else:
         random_pick = False
@@ -81,24 +76,22 @@ def main(_):
         # model2 is audio or acoustic images
         if transfer:
             modalities.append(0)
-        if FLAGS.model_2 == 'DualCamNet' or FLAGS.model_2 == 'DualCamHybridNet' or FLAGS.model_1 == 'DualCamNet' or FLAGS.model_1 == 'DualCamHybridNet':
+        if FLAGS.model_2 == 'DualCamHybridNet' or FLAGS.model_1 == 'DualCamHybridNet':
             modalities.append(0)
-        if FLAGS.model_2 == 'SoundNet5' or FLAGS.model_2 == 'HearNet':
+        if FLAGS.model_2 == 'HearNet':
             modalities.append(1)
-        if FLAGS.model_1 == 'ResNet50' or FLAGS.model_1 == 'ResNet18' or FLAGS.model_1 == 'ResNet18_v1' or FLAGS.model_1 == 'TemporalResNet50':
+        if FLAGS.model_1 == 'ResNet18_v1':
             modalities.append(2)
             
     else:
-        if FLAGS.model == 'DualCamNet' or FLAGS.model == 'DualCamHybridNet':
+        if FLAGS.model == 'DualCamHybridNet':
             modalities.append(0)
-        elif FLAGS.model == 'SoundNet5' or FLAGS.model == 'HearNet':
+        elif FLAGS.model == 'HearNet':
             modalities.append(1)
-        elif FLAGS.model == 'SeeNet' or FLAGS.model == 'ResNet50'or FLAGS.model == 'ResNet18' or FLAGS.model == 'ResNet18_v1' or FLAGS.model == 'TemporalResNet50':
+        elif FLAGS.model == 'ResNet18_v1':
             modalities.append(2)
-        elif FLAGS.model == 'AVModel':
-            modalities.append(0)
-            modalities.append(2)
-    
+        else:
+            print('Not existing model')
             
     with tf.device('/cpu:0'):
 
@@ -132,8 +125,6 @@ def main(_):
     
     if FLAGS.embedding:
         with tf.device('/gpu:0'):
-        #for d in ['/gpu:1', '/gpu:0']:
-            #with tf.device(d):
             if FLAGS.distillation:
                 model_1 = DualCamHybridModel(input_shape=[36, 48, 12], num_classes=FLAGS.num_class, embedding=0)
                 model_2 = HearModel(input_shape=[200, 1, 257], num_classes=FLAGS.num_class, embedding=0)
@@ -143,35 +134,22 @@ def main(_):
                 model_transfer = DualCamHybridModel(input_shape=[36, 48, 12], num_classes=FLAGS.num_class, embedding=FLAGS.embedding)
             else:
                 #visual model
-                if FLAGS.model_1 == 'ResNet50':
-                    model_1 = ResNet50Model(input_shape=[224, 298, 3], num_classes=FLAGS.num_class)
-                elif FLAGS.model_1 == 'ResNet18_v1':
+                if FLAGS.model_1 == 'ResNet18_v1':
                     #map=True map of features, otherwise 10 classes
                     model_1 = ResNet18_v1(input_shape=[224, 298, 3], num_classes=FLAGS.num_class, map=True)
-                elif FLAGS.model_1 == 'ResNet18':
-                    model_1 = ResNet18Model(input_shape=[224, 298, 3], num_classes=FLAGS.num_class, nr_frames=nr_frames)
-                elif FLAGS.model_1 == 'TemporalResNet50':
-                    model_1 = ResNet50TemporalModel(input_shape=[224, 298, 3], num_classes=FLAGS.num_class, nr_frames=nr_frames)
                 elif FLAGS.model_1 == 'DualCamHybridNet':
                     model_1 = DualCamHybridModel(input_shape=[36, 48, 12], num_classes=FLAGS.num_class,
                                                  embedding=FLAGS.embedding)
-                elif FLAGS.model_1 == 'DualCamNet':
-                    model_1 = DualCamModel(input_shape=[36, 48, 12], num_classes=FLAGS.num_class, version=10)
                 else:
-                     model_1 = ResNet50Model(input_shape=[224, 298, 3], num_classes=FLAGS.num_class)
+                    print('Not existing model 1')
                 
                 #audio or acoustic model
                 if FLAGS.model_2 == 'DualCamHybridNet':
                     model_2 = DualCamHybridModel(input_shape=[36, 48, 12], num_classes=FLAGS.num_class, embedding=FLAGS.embedding)
-                elif FLAGS.model_2 == 'DualCamNet':
-                    model_2 = DualCamModel(input_shape=[36, 48, 12], num_classes=FLAGS.num_class, version=10)
                 elif FLAGS.model_2 == 'HearNet':
                     model_2 = HearModel(input_shape=[200, 1, 257], num_classes=FLAGS.num_class, embedding=FLAGS.embedding)
-                elif FLAGS.model_2 == 'SoundNet5':
-                    #, checkpoint_file=FLAGS.checkpoint_dir+'/soundnet/soundnet5_final.t7'
-                    model_2 = SoundNet5Model(input_shape=[22050 * 2, 1, 1], num_classes=FLAGS.num_class)
                 else:
-                    model_2 = DualCamHybridModel(input_shape=[36, 48, 12], num_classes=FLAGS.num_class)
+                    print('Not existing model 2')
 
         # Build trainer
         print('{}: {} - Building trainer'.format(datetime.now(), FLAGS.exp_name))
@@ -231,22 +209,12 @@ def main(_):
         
     else:
         with tf.device('/gpu:0'):
-        #for d in ['/gpu:1', '/gpu:0']:
-            #with tf.device(d):
-            if FLAGS.model == 'ResNet50':
-                model = ResNet50Model(input_shape=[224, 298, 3], num_classes=FLAGS.num_class)
-            elif FLAGS.model == 'ResNet18_v1':
+            if FLAGS.model == 'ResNet18_v1':
                 model = ResNet18_v1(input_shape=[224, 298, 3], num_classes=FLAGS.num_class, map=False)
-            elif FLAGS.model == 'ResNet18':
-                model = ResNet18Model(input_shape=[224, 298, 3], num_classes=128, nr_frames=nr_frames)#64 or 128
-            elif FLAGS.model == 'TemporalResNet50':
-                model = ResNet50TemporalModel(input_shape=[224, 298, 3], num_classes=FLAGS.num_class, nr_frames=nr_frames)
             elif FLAGS.model == 'DualCamHybridNet':
                 model = DualCamHybridModel(input_shape=[36, 48, 12], num_classes=FLAGS.num_class, embedding=FLAGS.embedding)
             elif FLAGS.model == 'HearNet':
                 model = HearModel(input_shape=[200, 1, 257], num_classes=FLAGS.num_class, embedding=FLAGS.embedding)
-            elif FLAGS.model == 'SoundNet5':
-                model = SoundNet5Model(input_shape=[22050 * 2, 1, 1], num_classes=FLAGS.num_class, checkpoint_file=FLAGS.checkpoint_dir+'/soundnet/soundnet5_final.t7')
             else:
                 # Not necessary but set model to None to avoid warning about using unassigned local variable
                 model = None
@@ -372,22 +340,6 @@ if __name__ == '__main__':
     # 1
     # --num_class
     # 10
-    
-    # self.optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
-    #Adam occupies more variables space
-    # self.optimizer == 'Momentum'
-    # lr_fn = learning_rate_with_decay(
-    #     batch_size= FLAGS.batch_size, batch_denom=FLAGS.batch_size,
-    #     # [30, 60, 80, 90],
-    #     num_images=train_data.data_size, boundary_epochs=[20, 120, 160, 170],
-    #     decay_rates=[1, 0.1, 0.01, 0.001, 1e-4], warmup=True, base_lr=.0128)
-    # learning_rate = lr_fn(self.global_step)
-    #
-    # self.optimizer = tf.train.MomentumOptimizer(
-    #     learning_rate=learning_rate,
-    #     momentum=0.9
-    # )
-    #learning rate can be a number
 
     #How to use with two models
     # --mode
