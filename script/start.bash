@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-HOME_DIR="/home/vsanguineti/Documents/Code/audio-video/"
-ROOT_DIR="/data/vsanguineti/tfrecords/lists/"
+HOME_DIR="/data/vsanguineti/" #folder where saving tensorboard and checkpoints
+ROOT_DIR="/data/vsanguineti/tfrecords/lists/" # folder where dataset tfrecords are
 
 ST=(5)
 RESTORE=(14)
