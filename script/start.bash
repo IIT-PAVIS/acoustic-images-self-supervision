@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-HOME_DIR="/data/vsanguineti/" #folder where saving tensorboard and checkpoints
-ROOT_DIR="/data/vsanguineti/tfrecords/lists/" # folder where dataset tfrecords are
+HOME_DIR=$1 #"/data/vsanguineti/" #folder where saving tensorboard and checkpoints
+ROOT_DIR=$2 #"/data/vsanguineti/tfrecords/lists/" # folder where dataset tfrecords are
 
 ST=(5)
 RESTORE=(14)
@@ -15,7 +15,7 @@ for ((a = 0 ; a < ${#ST[@]} ; a++))
     do
     for t in "${ALPHA[@]}"
     do
-        CUDA_VISIBLE_DEVICES=$i python main.py --mode train --model_1 ResNet18_v1 --model_2 HearNet --train_file $ROOT_DIR"/training.txt" --valid_file $ROOT_DIR"/validation.txt" --test_file $ROOT_DIR"/testing.txt" --exp_name "transfer"$t"_"${ST[$a]}  --batch_size 64 --total_length 2 --number_of_crops 1 --sample_length 2 --buffer_size 10 --log_dir $HOME_DIR"/tensorboard/" --checkpoint_dir $HOME_DIR"/checkpoints/" --num_epochs 20 --learning_rate 0.00001 --embedding 1 --temporal_pooling 1 --margin 0.2 --transfer 1 --alpha $t --restore_checkpoint $HOME_DIR"/checkpoints/Acoustic12820epochs_"${ST[$a]}"/model_"${RESTORE[$a]}".ckpt" &
+        CUDA_VISIBLE_DEVICES=$i python3 main.py --mode train --model_1 ResNet18_v1 --model_2 HearNet --train_file $ROOT_DIR"/training.txt" --valid_file $ROOT_DIR"/validation.txt" --test_file $ROOT_DIR"/testing.txt" --exp_name "transfer"$t"_"${ST[$a]}  --batch_size 64 --total_length 2 --number_of_crops 1 --sample_length 2 --buffer_size 10 --tensorboard $HOME_DIR"/tensorboardaudiovideo/" --checkpoint_dir $HOME_DIR"/checkpoints/" --num_epochs 20 --learning_rate 0.00001 --embedding 1 --temporal_pooling 1 --margin 0.2 --transfer 1 --alpha $t --restore_checkpoint $HOME_DIR"/checkpoints/Acoustic12820epochs_"${ST[$a]}"/model_"${RESTORE[$a]}".ckpt" &
         #echo "gpu: $i" &
         P[$i]=$!
         #echo "pid: ${P[$i]}"
