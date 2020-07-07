@@ -1,16 +1,12 @@
 from datetime import datetime
-
-from models.base import buildAccuracyScalar
 import matplotlib.pyplot as plt
 import tensorflow as tf
 import numpy as np
-from scipy.spatial import distance
 from sklearn.metrics import confusion_matrix
 import itertools
 import tensorflow.contrib.slim as slim
 from tensorflow.python.ops import nn_ops
-from tensorflow.python.ops import math_ops
-from tensorflow.contrib import layers
+
 
 flags = tf.app.flags
 FLAGS = flags.FLAGS
@@ -50,11 +46,6 @@ class Trainer(object):
         self.data_1, self.data_2, labels, scenario = self._retrieve_batch(next_batch)
         self.labels = tf.argmax(labels, axis=1)
         self.scenario = tf.argmax(scenario, axis=1)
-        # generate random couples
-        # positive_outputANDnegative_output = self.mix_data(acoustic_data)
-        # labels are a placeholder but we compute an array with shuffle_data then given as input
-        # shuffle pairs
-        # input_video, input_acoustic = self.shuffle_data( anchor_output, positive_output, negative_output)
         # build model with tensor data next batch
         with tf.device('/gpu:0'):
             self.model_1._build_model(self.data_1)  # positive_outputANDnegative_output
@@ -63,7 +54,7 @@ class Trainer(object):
         # find logits after defining next batch and iterator
         
         # temporal pooling gives one predition for nr_frames, if it is not we have one predicition for frame
-        if (FLAGS.model_1 == 'ResNet50' or FLAGS.model_1 == 'ResNet18_v1') and self.temporal_pooling:
+        if FLAGS.model_1 == 'ResNet18_v1' and self.temporal_pooling:
             expanded_shape = [-1, self.nr_frames, 12, 16, self.num_classes]
             self.logits_1 = tf.reduce_mean(tf.reshape(self.model_1.output, shape=expanded_shape), axis=1)
         else:  # FLAGS.model_1 == 'DualCamHybridNet' and self.temporal_pooling:
@@ -87,29 +78,12 @@ class Trainer(object):
         # expand dims to have all combinations of audio and video
         logits_audio_infl = tf.expand_dims(logits_2_reshape, 1)
         logits_video_infl = tf.expand_dims(logits_1, 0)
-        # Define contrastive loss after having logits
-        # compute video anchor, positive and negative audio
-        
+
         # inner product between frame feature map and positive audio
         innerdot = logits_audio_infl * logits_video_infl  # order matters!!!!
-        #innerdot = tf.reduce_sum(innerdot, -1, keep_dims=True)
-        #attentionlogits = tf.reshape(innerdot, [-1, 12, 16, 1])
-        # attentionlogits = layers.conv2d(
-        #     attentionlogits, 1, [3, 3], stride=1, padding='same', activation_fn=None, scope='attention_logits')
-        #self.train_vars_attention = slim.get_trainable_variables('attention_logits')  # possibly empty
-        #att_map = tf.nn.softmax(tf.reshape(attentionlogits, [-1, 12 * 16]))
-        self.attention_map = tf.reshape(tf.reduce_sum(innerdot, -1, keep_dims=True), [-1, 12, 16, 1])
-        #attention_map = tf.reshape(self.attention_map, [tf.shape(logits_1)[0], tf.shape(logits_1)[0], 12, 16, 1])
-        # innerdot = logits_1 * logits_2_reshape
-        # innerdot = tf.reduce_sum(innerdot, 3)
-        # make weighted summation of video map by attention map to obtain self.num_classes vector
-        
-        # innerdot = tf.expand_dims(innerdot, axis=3)
-        
-        # reply video to multiply attention map for each video
+
+        # reply video to multiply inner product for each video
         video_repl = tf.tile(tf.expand_dims(logits_1, 0), [tf.shape(logits_1)[0], 1, 1, 1, 1])
-        # product = innerdot * logits_1
-        # product2 = innerdot*logits_2_reshape
         product = innerdot * video_repl
         # sum along 12 16
         videoweighted = tf.reduce_sum(product, [2, 3])
@@ -119,11 +93,7 @@ class Trainer(object):
                                  [1, tf.shape(logits_1)[0], 1])
         self.productvectnorm = tf.nn.l2_normalize(videoweighted, dim=-1)
         self.productvectnorm2 = tf.nn.l2_normalize(audio_repl_sum, dim=-1)
-        # max instead sum
-        # videoweighted = tf.reduce_sum(product, axis=[1, 2])
-        # audioweighted = tf.reduce_sum(logits_2_reshape, axis=[1, 2])nv
-        # videoweighted = tf.squeeze(videoweighted, axis=[1, 2])
-        
+
         # triplet loss between inner product, positive and negative audio
         # remove if using random couples
         self.tripletloss, _ = tf.cond(self.epoch > 3,
@@ -133,8 +103,6 @@ class Trainer(object):
                                       lambda: self.mix_all(self.productvectnorm, self.productvectnorm2, self.labels,
                                                            self.scenario,
                                                            FLAGS.margin))
-        # self.l1_loss = tf.reduce_sum(tf.abs(attentionlogits))
-        # self.reg_strength = 0.1
         self.loss = self.tripletloss + tf.losses.get_regularization_loss()  # + self.reg_strength*self.l1_loss
         # compute prediction if distance neg is greater than positive plus margin
         
@@ -162,12 +130,6 @@ class Trainer(object):
         # Initialize model saver
         self.saver = tf.train.Saver(max_to_keep=None)
         return iterat
-    
-    def triplet_loss(self, anchor_output, positive_output, negative_output, margin=0.2):
-        d_pos = tf.reduce_sum(tf.square(anchor_output - positive_output), 1)
-        d_neg = tf.reduce_sum(tf.square(anchor_output - negative_output), 1)
-        loss = tf.maximum(0., margin + d_pos - d_neg)
-        return tf.reduce_mean(loss)
     
     def _get_optimizer_variables(self, optimizer):
         
@@ -241,16 +203,6 @@ class Trainer(object):
         # compute loss and minimize
         train_iterat = self._build_functions(train_data)
         eval_iterat = valid_data.data.make_initializable_iterator()
-        # Add the variables we train to the summary
-        # for var in self.model.train_vars:
-        #     self.logger.log_histogram(var.name, var)
-        
-        # # Disable image logging
-        # self.logger.log_image('input', self.model.network['input'])
-        # self.logger.log_sound('input', self.model.network['input'])
-        # # Log attention map
-        self.logger.log_image('attention_map', tf.cast(255 * self.attention_map, tf.uint8), max_outputs=1)
-        self.logger.log_image('image', self.data_1, max_outputs=1)
         # Add the losses to summary
         self.logger.log_scalar('triplet_loss', self.tripletloss)
         self.logger.log_scalar('train_loss', self.loss)
@@ -264,7 +216,7 @@ class Trainer(object):
         # Start training session
         with tf.Session(config=tf.ConfigProto(allow_soft_placement=True, log_device_placement=True,
                                               gpu_options=tf.GPUOptions(
-                                                  allow_growth=True), )) as session:  # allow_growth=False to occupy all space in GPU
+                                                  allow_growth=True), )) as session:
             train_handle = session.run(train_iterat.string_handle())
             evaluation_handle = session.run(eval_iterat.string_handle())
             # Initialize model either randomly or with a checkpoint
@@ -355,16 +307,16 @@ class Trainer(object):
                     with open('{}/{}'.format(FLAGS.checkpoint_dir, FLAGS.exp_name) + "/model_{}.txt".format(name),
                               "w") as outfile:
                         outfile.write(
-                            '{}: {} - Best Epoch: {}\t Validation_Loss: {:6f}\t Validation_Accuracy: {:6f}'.format(  #
+                            '{}: {} - Best Epoch: {}\t Validation_Loss: {:6f}\t Validation_Accuracy: {:6f}'.format(
                                 datetime.now(),
                                 FLAGS.exp_name,
                                 best_epoch,
                                 best_loss, best_accuracy))  #
-            print('{}: {} - Best Epoch: {}\t Triplet_Loss: {:6f}\t Validation_Accuracy: {:6f}'.format(datetime.now(),  #
+            print('{}: {} - Best Epoch: {}\t Triplet_Loss: {:6f}\t Validation_Accuracy: {:6f}'.format(datetime.now(),
                                                                                                       FLAGS.exp_name,
                                                                                                       best_epoch,
                                                                                                       best_loss,
-                                                                                                      best_accuracy))  #
+                                                                                                      best_accuracy))
     
     def _save_checkpoint(self, session, epoch):
         
@@ -605,34 +557,18 @@ class Trainer(object):
         #     self.plot_confusion_matrix(pred, label)
         return total_loss, total_accuracy
     
-    def compute_class(self, anchor, positive, negative):
-        difference = tf.subtract(anchor, positive)
-        square = tf.square(difference)
-        sum = tf.reduce_sum(square, axis=1, keep_dims=True)
-        
-        difference2 = tf.subtract(anchor, negative)
-        square2 = tf.square(difference2)
-        sum2 = tf.reduce_sum(square2, axis=1, keep_dims=True)
-        
-        # distance = tf.sqrt(sum)
-        margintensor = tf.convert_to_tensor(FLAGS.margin, dtype=tf.float32)
-        # distance neg > distance pos + margin means 1
-        gr = tf.greater(sum2, margintensor + sum)
-        pred = tf.to_int32(gr)
-        return pred
-    
     def _retrieve_batch(self, next_batch):
         
-        if FLAGS.model_1 == 'ResNet50' or FLAGS.model_1 == 'SeeNet' or FLAGS.model_1 == 'ResNet18_v1' \
-                or FLAGS.model_1 == 'TemporalResNet50' or FLAGS.model_1 == 'ResNet18':
+        if FLAGS.model_1 == 'ResNet18_v1':
             data_1 = tf.reshape(next_batch[2], shape=[-1, self.shape_1[0], self.shape_1[1], self.shape_1[2]])
-        elif FLAGS.model_1 == 'DualCamNet' or FLAGS.model_1 == 'DualCamHybridNet':
+        elif FLAGS.model_1 == 'DualCamHybridNet':
             data_1 = tf.reshape(next_batch[0], shape=[-1, self.shape_1[0], self.shape_1[1], self.shape_1[2]])
         else:
             raise ValueError('Unknown model type')
-        if FLAGS.model_2 == 'HearNet' or FLAGS.model_2 == 'SoundNet5':
+
+        if FLAGS.model_2 == 'HearNet':
             data_2 = tf.reshape(next_batch[1], shape=[-1, self.shape_2[0], self.shape_2[1], self.shape_2[2]])
-        elif FLAGS.model_2 == 'DualCamNet' or FLAGS.model_2 == 'DualCamHybridNet':
+        elif FLAGS.model_2 == 'DualCamHybridNet':
             data_2 = tf.reshape(next_batch[0], shape=[-1, self.shape_2[0], self.shape_2[1], self.shape_2[2]])
         else:
             raise ValueError('Unknown model type')
@@ -645,9 +581,6 @@ class Trainer(object):
         # Assert testing set is not None
         assert test_data is not None
         eval_iterat = self._build_functions(test_data)
-        # Create a one-shot iterator
-        # iterator = test_data.data.make_one_shot_iterator()
-        # next_batch = iterator.get_next()
         # Start training session
         with tf.Session(config=tf.ConfigProto(gpu_options=tf.GPUOptions(allow_growth=True))) as session:  # allow_growth
             evaluation_handle = session.run(eval_iterat.string_handle())
