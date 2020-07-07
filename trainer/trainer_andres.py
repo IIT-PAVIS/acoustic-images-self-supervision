@@ -1,16 +1,11 @@
 from datetime import datetime
-
 from models.base import buildAccuracy
 import matplotlib.pyplot as plt
 import tensorflow as tf
 import numpy as np
-from scipy.spatial import distance
 from sklearn.metrics import confusion_matrix
 import itertools
 import tensorflow.contrib.slim as slim
-from tensorflow.python.ops import nn_ops
-from tensorflow.python.ops import math_ops
-from tensorflow.contrib import layers
 
 flags = tf.app.flags
 FLAGS = flags.FLAGS
@@ -49,11 +44,6 @@ class Trainer(object):
         # give directly batch tensor depending on the network reshape
         audio_data, acoustic_data, labels, scenario = self._retrieve_batch(next_batch)
         self.labels = labels
-        # generate random couples
-        # positive_outputANDnegative_output = self.mix_data(acoustic_data)
-        # labels are a placeholder but we compute an array with shuffle_data then given as input
-        # shuffle pairs
-        # input_video, input_acoustic = self.shuffle_data( anchor_output, positive_output, negative_output)
         # build model with tensor data next batch
         with tf.device('/gpu:0'):
             self.model_2._build_model(audio_data)
@@ -176,13 +166,6 @@ class Trainer(object):
         train_iterat = self._build_functions(train_data)
         eval_iterat = valid_data.data.make_initializable_iterator()
         # Add the variables we train to the summary
-        # for var in self.model.train_vars:
-        #     self.logger.log_histogram(var.name, var)
-
-        # # Disable image logging
-        # self.logger.log_image('input', self.model.network['input'])
-        # self.logger.log_sound('input', self.model.network['input'])
-        # # Log attention map
         self.logger.log_scalar('cross_entropy_loss', self.cross_loss)
         self.logger.log_scalar('distillation_loss', self.dist_loss)
         self.logger.log_scalar('train_loss', self.loss)
@@ -196,7 +179,7 @@ class Trainer(object):
         # Start training session
         with tf.Session(config=tf.ConfigProto(allow_soft_placement=True, log_device_placement=True,
                                               gpu_options=tf.GPUOptions(
-                                                  allow_growth=True), )) as session:  # allow_growth=False to occupy all space in GPU
+                                                  allow_growth=True), )) as session:
             train_handle = session.run(train_iterat.string_handle())
             evaluation_handle = session.run(eval_iterat.string_handle())
             # Initialize model either randomly or with a checkpoint
@@ -262,22 +245,6 @@ class Trainer(object):
                 ]), epoch)
 
                 self.logger.flush_writer()
-                # if multiple of 10 epochs save model
-                # if epoch % 1 == 0:
-                #     best_epoch = epoch
-                #     best_accuracy = total_accuracy
-                #     best_loss = cross_loss
-                #     # Save model
-                #     self._save_checkpoint(session, epoch)
-                #     with open('{}/{}'.format(FLAGS.checkpoint_dir, FLAGS.exp_name) + "/model_{}.txt".format(epoch),
-                #               "w") as outfile:
-                #         outfile.write(
-                #             '{}: {} - Epoch: {}\t Validation_Loss: {:6f}\t Validation_Accuracy: {:6f}'.format(
-                #                 datetime.now(),
-                #                 FLAGS.exp_name,
-                #                 best_epoch,
-                #                 best_loss, best_accuracy))
-
                 # if accuracy or loss decrease save model
                 if total_accuracy >= best_accuracy:
                     best_epoch = epoch
@@ -289,16 +256,16 @@ class Trainer(object):
                     with open('{}/{}'.format(FLAGS.checkpoint_dir, FLAGS.exp_name) + "/model_{}.txt".format(name),
                               "w") as outfile:
                         outfile.write(
-                            '{}: {} - Best Epoch: {}\t Validation_Loss: {:6f}\t Validation_Accuracy: {:6f}'.format(  #
+                            '{}: {} - Best Epoch: {}\t Validation_Loss: {:6f}\t Validation_Accuracy: {:6f}'.format(
                                 datetime.now(),
                                 FLAGS.exp_name,
                                 best_epoch,
-                                best_loss, best_accuracy))  #
-            print('{}: {} - Best Epoch: {}\t cross_loss: {:6f}\t Validation_Accuracy: {:6f}'.format(datetime.now(),  #
+                                best_loss, best_accuracy))
+            print('{}: {} - Best Epoch: {}\t cross_loss: {:6f}\t Validation_Accuracy: {:6f}'.format(datetime.now(),
                                                                                                       FLAGS.exp_name,
                                                                                                       best_epoch,
                                                                                                       best_loss,
-                                                                                                      best_accuracy))  #
+                                                                                                      best_accuracy))
 
     def _save_checkpoint(self, session, epoch):
 
@@ -352,7 +319,7 @@ class Trainer(object):
 
         acoustic_tr_data = tf.reshape(next_batch[0],
                                       shape=[-1, self.transfer_shape[0], self.transfer_shape[1],
-                                             self.transfer_shape[2]])  # , dtype=tf.float32
+                                             self.transfer_shape[2]])
         acoustic_data = tf.reshape(next_batch[1],
                                    shape=[-1, self.shape_2[0], self.shape_2[1], self.shape_2[2]])
         labels = tf.reshape(next_batch[3], shape=[-1, 10])
@@ -398,7 +365,11 @@ class Trainer(object):
 
         perc = counter / float(percentage2)
         print(perc)
-        classes = ['False', 'True']
+        # classes = ['Clapping', 'Snapping fingers', 'Speaking', 'Whistling', 'Playing kendama', 'Clicking', 'Typing',
+        #            'Knocking', 'Hammering', 'Peanut breaking', 'Paper ripping', 'Plastic crumpling', 'Paper shaking',
+        #            'Stick dropping']
+        classes = ['Train', 'Boat', 'Drone', 'Fountain', 'Drill',
+                   'Razor', 'Hair dryer', 'Vacuumcleaner', 'Cart', 'Traffic']
         if normalize:
             cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
             print("Normalized confusion matrix")
@@ -424,5 +395,4 @@ class Trainer(object):
         plt.ylabel('True label')
         plt.xlabel('Predicted label')
         plt.tight_layout()
-        plt.show()
-        # plt.savefig('/data/vsanguineti/confusion_matrix_hearnet_transfer.png')
+        plt.savefig('{}/{}'.format(FLAGS.checkpoint_dir, FLAGS.exp_name) + '/confusion_matrix.png')

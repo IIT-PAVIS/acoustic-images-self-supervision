@@ -533,7 +533,7 @@ class Trainer(object):
                                self.model_2.network['is_training']: 0,
                                self.model_1.network['keep_prob']: 1.0,
                                self.model_2.network['keep_prob']: 1.0})
-                
+
                 batch_accuracy = 1.0 - batch_accuracy
                 # Update counters
                 data_set_size += np.shape(labels_data)[0]  # 1 labels_data.shape[0]
