@@ -15,45 +15,48 @@ from traceback import print_exc
 Image = namedtuple('Image', 'rows cols depth data')
 Audio = namedtuple('Audio', 'mics samples data')
 
-#_BROKEN_MICS_IDX = [79, 105]
+# _BROKEN_MICS_IDX = [79, 105]
 _NUMBER_OF_MICS = 128
 _NUMBER_OF_SAMPLES = 1024
 _FRAMES_PER_SECOND = 12
-#_MIN_LENGTH = 30
+
+
+# _MIN_LENGTH = 30
 
 
 def _read_acoustic_image(filename):
     print('{} - Reading {}'.format(datetime.now(), filename))
-    
+
     # img_raw = spio.loadmat(filename)['Beam'].astype('<f4')
-    img_raw = spio.loadmat(filename)['MFCC'].astype('<f4')
-    pad_width = [(before, 0) for before in np.array([36, 48, 12]) - np.array(img_raw.shape)]
-    img_padded = np.pad(img_raw, pad_width=pad_width, mode='constant', constant_values=0)
-    
+    img_padded = spio.loadmat(filename)['MFCC']
+    # pad_width = [(before, 0) for before in np.array([36, 48, 13]) - np.array(img_raw.shape)]
+    # img_padded = np.pad(img_raw, pad_width=pad_width, mode='constant', constant_values=0)
+
     rows = img_padded.shape[0]
     cols = img_padded.shape[1]
     depth = img_padded.shape[2]
     image_serialized = img_padded.tostring()
-    
+
     return Image(rows=rows, cols=cols, depth=depth, data=image_serialized)
 
 
 def one_microphone(audio_data):
     """Python function to build a waveform audio from audio samples."""
-    #choose index
+    # choose index
     mic_id = 0
-    #consider audio of one microphone
+    # consider audio of one microphone
     audio_data_mic = audio_data[mic_id, :]
     return audio_data_mic
+
 
 def _read_raw_audio_data(audio_sample_file):
     print('{} - Reading {}'.format(datetime.now(), audio_sample_file))
     with open(audio_sample_file) as fid:
         audio_data_sample = np.fromfile(fid, np.int32).reshape((_NUMBER_OF_MICS, _NUMBER_OF_SAMPLES), order='F')
-        #audio_data_sample[_BROKEN_MICS_IDX, :] = 0
+        # audio_data_sample[_BROKEN_MICS_IDX, :] = 0
         audio_data_sample = one_microphone(audio_data_sample)
     audio_serialized = audio_data_sample.tostring()
-    
+
     return Audio(mics=1, samples=_NUMBER_OF_SAMPLES, data=audio_serialized)
 
 
@@ -99,7 +102,7 @@ def _smallest_size_at_least(height, width, smallest_side):
     height = float(height)
     width = float(width)
     smallest_side = float(smallest_side)
-    
+
     if height > width:
         scale = smallest_side / width
     else:
@@ -126,15 +129,15 @@ def _crop(image, offset_height, offset_width, crop_height, crop_width):
         less than the crop size.
     """
     original_shape = np.shape(image)
-    
+
     assert np.rank(image) == 3
     # 'Rank of image must be equal to 3.']
     cropped_shape = np.stack([crop_height, crop_width, original_shape[2]])
-    
+
     assert original_shape[0] >= crop_height and original_shape[1] >= crop_width
     # 'Crop size greater than the image size.']
     offsets = np.stack([offset_height, offset_width, 0])
-    
+
     # Use tf.slice instead of crop_to_bounding box as it accepts tensors to
     # define the crop size.
     image = image[offset_height:crop_height + offset_height, offset_width:crop_width + offset_width, :]
@@ -153,10 +156,10 @@ def _central_crop(image, crop_height, crop_width):
     outputs = []
     image_height = np.shape(image)[0]
     image_width = np.shape(image)[1]
-    
+
     offset_height = (image_height - crop_height) / 2
     offset_width = (image_width - crop_width) / 2
-    
+
     image = _crop(image, offset_height, offset_width,
                   crop_height, crop_width)
     return image
@@ -164,19 +167,19 @@ def _central_crop(image, crop_height, crop_width):
 
 def _read_video_frame(filename):
     print('{} - Reading {}'.format(datetime.now(), filename))
-    
+
     image_raw = cv2.imread(filename)
-    
+
     # rows = image_raw.shape[0]
     # cols = image_raw.shape[1]
     # depth = image_raw.shape[2]
-    #image rescaled to give in input image aligned with acoustic image
+    # image rescaled to give in input image aligned with acoustic image
     image = _aspect_preserving_resize(image_raw, 224)
     rows = image.shape[0]
     cols = image.shape[1]
     depth = image.shape[2]
-    #don't take crop
-    #image = _central_crop(image, _IMAGE_SIZE, _IMAGE_SIZE)
+    # don't take crop
+    # image = _central_crop(image, _IMAGE_SIZE, _IMAGE_SIZE)
     image_serialized = image.tostring()
     return Image(rows=rows, cols=cols, depth=depth, data=image_serialized)
 
@@ -197,7 +200,7 @@ if __name__ == '__main__':
     parser.add_argument('--modalities', help='Modalities to consider. 0: Audio images. 1: Audio data. 2: Video data.',
                         nargs='*', type=int)
     parsed_args = parser.parse_args()
-    
+
     root_dir = parsed_args.root_dir
     root_raw_dir = parsed_args.root_raw_dir
     out_dir = parsed_args.out_dir
@@ -205,10 +208,10 @@ if __name__ == '__main__':
     include_audio_images = modalities is None or 0 in modalities
     include_audio_data = modalities is None or 1 in modalities
     include_video_data = modalities is None or 2 in modalities
-    
+
     # data_dirs = sorted(glob.glob('{}/*/*/*/Multispectral_Acoustic_Image/'.format(root_dir)))
     data_dirs = sorted(glob.glob('{}/*/*/MFCC_Image/'.format(root_dir)))
-    
+
     for data_mat_dir in data_dirs:
         # / media / vsanguineti / D90A - E56D / dualcam_actions_dataset / sync / Location_1 / 02
         # _Nuno / data_001
@@ -225,46 +228,45 @@ if __name__ == '__main__':
         except:
             print('error during reading video_time.txt for ' + c)
             print_exc()
-        
-        classes = int(filter(re.compile('class_.*').match, splitted_data_dir)[0].split('_')[1])
+
+        classes = int(next(filter(re.compile('class_.*').match, splitted_data_dir)).split('_')[1])
         # subject = filter(re.compile('0[1-9]_.*').match, splitted_data_dir)[0]
         # subject_idx = int(subject.split('_')[0])
-        location = int(filter(re.compile('data_.*').match, splitted_data_dir)[0].split('_')[1])
-        
+        location = int(next(filter(re.compile('data_.*').match, splitted_data_dir)).split('_')[1])
+
         # data_raw_audio_dir = data_mat_dir.replace(root_dir, root_raw_dir).replace('Multispectral_Acoustic_Image', 'audio')
         # data_raw_video_dir = data_mat_dir.replace(root_dir, root_raw_dir).replace('Multispectral_Acoustic_Image', 'video')
         data_raw_audio_dir = data_mat_dir.replace(root_dir, root_raw_dir).replace('MFCC_Image', 'audio')
         data_raw_video_dir = data_mat_dir.replace(root_dir, root_raw_dir).replace('MFCC_Image', 'video')
-        
+
         num_mat_files = len([name for name in os.listdir(data_mat_dir) if name.endswith('.mat')])
         num_raw_audio_files = len([name for name in os.listdir(data_raw_audio_dir) if name.endswith('.dc')])
         num_raw_video_files = len([name for name in os.listdir(data_raw_video_dir) if name.endswith('.bmp')])
-        
-        
+
         # Ensure there are the same number of acoustic images and raw audio and video files
         assert num_mat_files == num_raw_audio_files
         assert num_mat_files == num_raw_video_files
-        #compute number of videos (number ot total video files)
-        
+        # compute number of videos (number ot total video files)
+
         frames_per_video = _FRAMES_PER_SECOND * video_time
-      
+
         num_samples = _FRAMES_PER_SECOND
-        
-        #changed
+
+        # changed
         for idx in range(video_time):
-            
+
             start_index = idx * num_samples
-            
+
             # mat_files is a tuple containing audio_images' name for the num_frames video
             if include_audio_images:
-                mat_files = ['{}/Data_{}.mat'.format(data_mat_dir, index +1) for index in
+                mat_files = ['{}/Data_{}.mat'.format(data_mat_dir, index + 1) for index in
                              range(start_index, start_index + num_samples)]
                 audio_images = [_read_acoustic_image(filename) for filename in mat_files]
             else:
                 audio_images = None
-                
+
             if include_audio_data:
-                
+
                 raw_audio_files = ['{}/A_{:06d}.dc'.format(data_raw_audio_dir, index + 1) for
                                    index in range(start_index, start_index + num_samples)]
                 audio_data = [_read_raw_audio_data(filename) for filename in raw_audio_files]
@@ -277,15 +279,15 @@ if __name__ == '__main__':
                 video_images = [_read_video_frame(filename) for filename in raw_video_files]
             else:
                 video_images = None
-            
+
             out_data_dir = '{}/class_{}/data_{:0>3d}/'.format(out_dir, classes, location)
             out_filename = '{}/Data_{:0>3d}.tfrecord'.format(out_data_dir, idx + 1)
-            
+
             if not os.path.exists(out_data_dir):
                 os.makedirs(out_data_dir)
-            
+
             print('{} - Writing {}'.format(datetime.now(), out_filename))
-            
+
             with tf.python_io.TFRecordWriter(out_filename, options=tf.python_io.TFRecordOptions(
                     compression_type=tf.python_io.TFRecordCompressionType.GZIP)) as writer:
                 # Store audio and video data properties as context features, assuming all sequences are the same size
