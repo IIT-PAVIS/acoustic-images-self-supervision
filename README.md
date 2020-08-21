@@ -80,7 +80,7 @@ python3 framecount.py $OUT_DIR 1
 
 ```
 
-To split the dataset in training, validation and test we use the lists of TFRecords provided in the dataset website. 
+To split the dataset in training, validation and test we use the lists of TFRecords provided in the list folder. 
 
 
 
