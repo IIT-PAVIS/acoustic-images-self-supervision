@@ -1,11 +1,9 @@
 import argparse
 import cv2
 import glob
-import math
 import numpy as np
 import os
 import re
-import librosa
 import tensorflow as tf
 from collections import namedtuple
 from datetime import datetime
@@ -15,22 +13,15 @@ from traceback import print_exc
 Image = namedtuple('Image', 'rows cols depth data')
 Audio = namedtuple('Audio', 'mics samples data')
 
-# _BROKEN_MICS_IDX = [79, 105]
 _NUMBER_OF_MICS = 128
 _NUMBER_OF_SAMPLES = 1024
 _FRAMES_PER_SECOND = 12
 
 
-# _MIN_LENGTH = 30
-
-
 def _read_acoustic_image(filename):
     print('{} - Reading {}'.format(datetime.now(), filename))
 
-    # img_raw = spio.loadmat(filename)['Beam'].astype('<f4')
     img_padded = spio.loadmat(filename)['MFCC']
-    # pad_width = [(before, 0) for before in np.array([36, 48, 13]) - np.array(img_raw.shape)]
-    # img_padded = np.pad(img_raw, pad_width=pad_width, mode='constant', constant_values=0)
 
     rows = img_padded.shape[0]
     cols = img_padded.shape[1]
@@ -53,7 +44,6 @@ def _read_raw_audio_data(audio_sample_file):
     print('{} - Reading {}'.format(datetime.now(), audio_sample_file))
     with open(audio_sample_file) as fid:
         audio_data_sample = np.fromfile(fid, np.int32).reshape((_NUMBER_OF_MICS, _NUMBER_OF_SAMPLES), order='F')
-        # audio_data_sample[_BROKEN_MICS_IDX, :] = 0
         audio_data_sample = one_microphone(audio_data_sample)
     audio_serialized = audio_data_sample.tostring()
 
@@ -63,8 +53,6 @@ def _read_raw_audio_data(audio_sample_file):
 def str2dir(dir_name):
     if not os.path.isdir(dir_name):
         raise argparse.ArgumentTypeError('{} is not a directory!'.format(dir_name))
-    # elif os.access(dirname, os.R_OK):
-    #     return argparse.ArgumentTypeError('{} is not a readable directory!'.format(dirname))
     else:
         return os.path.abspath(os.path.expanduser(dir_name))
 
@@ -111,75 +99,15 @@ def _smallest_size_at_least(height, width, smallest_side):
     new_width = int(width * scale)
     return new_height, new_width
 
-
-def _crop(image, offset_height, offset_width, crop_height, crop_width):
-    """Crops the given image using the provided offsets and sizes.
-    Note that the method doesn't assume we know the input image size but it does
-    assume we know the input image rank.
-    Args:
-      image: an image of shape [height, width, channels].
-      offset_height: a scalar indicating the height offset.
-      offset_width: a scalar indicating the width offset.
-      crop_height: the height of the cropped image.
-      crop_width: the width of the cropped image.
-    Returns:
-      the cropped (and resized) image.
-    Raises:
-      InvalidArgumentError: if the rank is not 3 or if the image dimensions are
-        less than the crop size.
-    """
-    original_shape = np.shape(image)
-
-    assert np.rank(image) == 3
-    # 'Rank of image must be equal to 3.']
-    cropped_shape = np.stack([crop_height, crop_width, original_shape[2]])
-
-    assert original_shape[0] >= crop_height and original_shape[1] >= crop_width
-    # 'Crop size greater than the image size.']
-    offsets = np.stack([offset_height, offset_width, 0])
-
-    # Use tf.slice instead of crop_to_bounding box as it accepts tensors to
-    # define the crop size.
-    image = image[offset_height:crop_height + offset_height, offset_width:crop_width + offset_width, :]
-    return image
-
-
-def _central_crop(image, crop_height, crop_width):
-    """Performs central crops of the given image.
-    Args:
-      image: image.
-      crop_height: the height of the image following the crop.
-      crop_width: the width of the image following the crop.
-    Returns:
-      cropped image.
-    """
-    outputs = []
-    image_height = np.shape(image)[0]
-    image_width = np.shape(image)[1]
-
-    offset_height = (image_height - crop_height) / 2
-    offset_width = (image_width - crop_width) / 2
-
-    image = _crop(image, offset_height, offset_width,
-                  crop_height, crop_width)
-    return image
-
-
 def _read_video_frame(filename):
     print('{} - Reading {}'.format(datetime.now(), filename))
 
     image_raw = cv2.imread(filename)
-
-    # rows = image_raw.shape[0]
-    # cols = image_raw.shape[1]
-    # depth = image_raw.shape[2]
     # image rescaled to give in input image aligned with acoustic image
     image = _aspect_preserving_resize(image_raw, 224)
     rows = image.shape[0]
     cols = image.shape[1]
     depth = image.shape[2]
-    # don't take crop
-    # image = _central_crop(image, _IMAGE_SIZE, _IMAGE_SIZE)
     image_serialized = image.tostring()
     return Image(rows=rows, cols=cols, depth=depth, data=image_serialized)
 
@@ -194,14 +122,12 @@ def _bytes_feature(value):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('root_dir', help='Matlab files data set root directory', type=str2dir)
     parser.add_argument('root_raw_dir', help='Synchronized raw files data set root directory', type=str2dir)
     parser.add_argument('out_dir', help='Directory where to store the converted data', type=str2dir)
     parser.add_argument('--modalities', help='Modalities to consider. 0: Audio images. 1: Audio data. 2: Video data.',
                         nargs='*', type=int)
     parsed_args = parser.parse_args()
 
-    root_dir = parsed_args.root_dir
     root_raw_dir = parsed_args.root_raw_dir
     out_dir = parsed_args.out_dir
     modalities = parsed_args.modalities
@@ -209,13 +135,10 @@ if __name__ == '__main__':
     include_audio_data = modalities is None or 1 in modalities
     include_video_data = modalities is None or 2 in modalities
 
-    # data_dirs = sorted(glob.glob('{}/*/*/*/Multispectral_Acoustic_Image/'.format(root_dir)))
-    data_dirs = sorted(glob.glob('{}/*/*/MFCC_Image/'.format(root_dir)))
+    data_dirs = sorted(glob.glob('{}/*/*/MFCC_Image/'.format(root_raw_dir)))
 
     for data_mat_dir in data_dirs:
-        # / media / vsanguineti / D90A - E56D / dualcam_actions_dataset / sync / Location_1 / 02
-        # _Nuno / data_001
-        # / media / vsanguineti / D90A - E56D / dualcam_actions_dataset / sync / classes/ data_001
+
         splitted_data_dir = data_mat_dir.split('/')
         data_dir_file = str.join('/', splitted_data_dir[:-2])
         video_time_filename = 'video_time.txt'
@@ -230,14 +153,10 @@ if __name__ == '__main__':
             print_exc()
 
         classes = int(next(filter(re.compile('class_.*').match, splitted_data_dir)).split('_')[1])
-        # subject = filter(re.compile('0[1-9]_.*').match, splitted_data_dir)[0]
-        # subject_idx = int(subject.split('_')[0])
         location = int(next(filter(re.compile('data_.*').match, splitted_data_dir)).split('_')[1])
 
-        # data_raw_audio_dir = data_mat_dir.replace(root_dir, root_raw_dir).replace('Multispectral_Acoustic_Image', 'audio')
-        # data_raw_video_dir = data_mat_dir.replace(root_dir, root_raw_dir).replace('Multispectral_Acoustic_Image', 'video')
-        data_raw_audio_dir = data_mat_dir.replace(root_dir, root_raw_dir).replace('MFCC_Image', 'audio')
-        data_raw_video_dir = data_mat_dir.replace(root_dir, root_raw_dir).replace('MFCC_Image', 'video')
+        data_raw_audio_dir = data_mat_dir.replace('MFCC_Image', 'audio')
+        data_raw_video_dir = data_mat_dir.replace('MFCC_Image', 'video')
 
         num_mat_files = len([name for name in os.listdir(data_mat_dir) if name.endswith('.mat')])
         num_raw_audio_files = len([name for name in os.listdir(data_raw_audio_dir) if name.endswith('.dc')])
