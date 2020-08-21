@@ -24,4 +24,50 @@ The code is organized in several folders and there is a main script as follows:
 
 ![work in progress](https://cdn5.vectorstock.com/i/1000x1000/90/79/under-construction-icon-on-white-background-under-vector-19719079.jpg)
 
+## Preparing the dataset
+
+First we need to download the dataset. The dataset is delivered as a compressed zip file.
+
+Once downloaded and decompressed, the data has to be converted into TensorFlow's native
+[TFRecord](https://www.tensorflow.org/api_docs/python/python_io#tfrecords-format-details) format. Each TFRecord
+will contain a [TF-SequenceExample](https://github.com/tensorflow/tensorflow/blob/r1.4/tensorflow/core/example/example.proto)
+protocol buffer with 1 second of data from the three modalities, video images, raw audio, and acoustic images.
+It also contains labels data for video number and class.
+
+Using `convert_data.py` script you have to provide the location of the
+dataset and the folder where you want to save TFRecords. How to
+generate TFRecords for all modalities:
+
+```shell
+# location where dataset was decompressed
+ROOT_RAW_DIR= folder where dataset is, containing all classes:
+* class_0 
+	*data_000
+		*audio
+		*MFCC_Image
+		*video
+# location where to save TFRECORDS
+OUT_DIR=folder where TFRecords will be saved, containing all classes 
+* class_0 
+	*data_000
+		*Data_001.tfrecord
+# generate TFRecords for all modalities
+python3 convert_data.py $ROOT_RAW_DIR $OUT_DIR --modalities 0 1 2
+```shell
+When the script has finished running, you will find several TFRecord files created in OUT_DIR folder. These files represent the full dataset sharded over 10 classes. The mapping from
+labels to class names is as follows:
+```
+class_0: train
+class_1: boat
+class_2: drone
+class_3: fountain
+class_4: drill
+class_5: razor
+class_6: hair dryer
+class_7: hoover
+class_8: shopping cart
+class_9: traffic
+```
+
+
 
