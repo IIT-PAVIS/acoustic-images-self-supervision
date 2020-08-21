@@ -71,6 +71,16 @@ class_7: hoover
 class_8: shopping cart
 class_9: traffic
 ```
+To know the length of each video so we use the `framecount.py` utility script to generate a txt file for each video containing its length in seconds. It can be used both for measuring the length of video or TFRecords video, passing the location of the
+dataset or of the folder where you have saved TFRecords, in addition with a flag 0 for normal videos or 1 for TFRecords. Run the following:
+
+```shell
+python3 framecount.py $ROOT_RAW_DIR 0
+python3 framecount.py $OUT_DIR 1
+
+```
+
+To split the dataset in training, validation and test we use the lists of TFRecords provided in the dataset website. 
 
 
 
