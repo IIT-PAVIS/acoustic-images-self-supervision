@@ -1,9 +1,9 @@
-# ''' contare il numero di frame dentro la cartella per trovare
-# quanto lungo il video in secondi, salvare un file txt sulla durata
-# in secondi del video arrotondata per difetto (int) '''
+# ''' count number of frames inside a folder to find
+# how many seconds video is long
+# and save a txt with floor of number of s
 #
-# ''' nella cartella radice (la cartella class) salvare un file che contenga
-# la somma delle durate dei video dei file salvati nella cartella data '''
+# it saves also a txt file in class folder to know
+# the total length in seconds for that class
 
 # sys is used for extracting script arguments from bash
 import sys
@@ -12,29 +12,31 @@ import glob
 # os is used to obtain script directory
 import os
 
-FRAMERATE = 12 #number of frames
+FRAMERATE = 12 #number of frames for each second
 
 # extracting data location (path)
-# if no argument is passaed, then there' s only script name in sys.argv
+# if no argument is passed, then there' s only script name in sys.argv
 if len(sys.argv) == 1:
     path = os.path.dirname(os.path.abspath(__file__))
     print('no arguments passed: using {}'.format(path))
-elif sys.argv[1] == '-c':
-    path = sys.argv[2]
-else:
+elif len(sys.argv) == 3:
     path = sys.argv[1]
+    tfrecord = int(sys.argv[2])
 
-tfrecord = 1
 #list containing classes' directories
 classes_dir = glob.glob(path + '/class_*/')
 
-# '''files that will contain single video length and sum of each video length
-# of the class'''
+'''files that will contain single video length and sum of each video length
+ of the class'''
 video_time_filename = 'video_time.txt'
 class_time_filename = 'class_time.txt'
+#min, avg, max number of videos for each category
 datadir_filename = 'datadir.txt'
+#class with less, avg and more seconds
 timedataset_filename = 'timedataset.txt'
+#min, avg, max length of video
 video_filename = 'videodataset.txt'
+
 num_datadir_max = 0
 total_data_dir = 0
 num_datadir_min = 1000
@@ -68,18 +70,13 @@ for c in classes_dir:
         
         video_dir = d + '/video'
         if tfrecord:
-            tot_frames = len((glob.glob(d + '/*.tfrecord')))
-            # using integer division
-            video_seconds = tot_frames #// FRAMERATE
+            tot_tfrecords = len((glob.glob(d + '/*.tfrecord')))
+            # one tfrecord for each second
+            video_seconds = tot_tfrecords
         else:
             tot_frames = len((glob.glob(video_dir + '/*.bmp')))
-            # using integer division
+            # using integer division to find floor number of seconds
             video_seconds = tot_frames // FRAMERATE
-        #video seconds has o be miminum 2 seconds or divisible for 2
-        #if it is 0 we don't add
-        #if it is odd we subtract one
-        if video_seconds % 2 != 0:
-            video_seconds -= 1
 
         if video_seconds < timevideomin and video_seconds >= 2:
             timevideomin = video_seconds
