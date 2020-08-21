@@ -41,21 +41,24 @@ generate TFRecords for all modalities:
 ```shell
 # location where dataset was decompressed
 ROOT_RAW_DIR= folder where dataset is, containing all classes:
-* class_0 
-	*data_000
-		*audio
-		*MFCC_Image
-		*video
+├── class_0
+│   ├── data_000
+│   │   ├── audio
+│   │   ├── MFCC_Image
+│   │   ├── video
+
 # location where to save TFRECORDS
 OUT_DIR=folder where TFRecords will be saved, containing all classes 
-* class_0 
-	*data_000
-		*Data_001.tfrecord
+├── class_0
+│   ├── data_000
+│   │   ├── Data_001.tfrecord
 # generate TFRecords for all modalities
 python3 convert_data.py $ROOT_RAW_DIR $OUT_DIR --modalities 0 1 2
-```shell
+```
+
 When the script has finished running, you will find several TFRecord files created in OUT_DIR folder. These files represent the full dataset sharded over 10 classes. The mapping from
 labels to class names is as follows:
+
 ```
 class_0: train
 class_1: boat
