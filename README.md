@@ -26,8 +26,9 @@ The code is organized in several folders and there is a main script as follows:
 
 ## Preparing the dataset
 
-First we need to download the dataset. The dataset is delivered as a compressed zip file.
+For researchers who wish to use ACoustic Images and Videos in the Wild dataset for non-commercial research and/or educational purposes, please write to valentina.sanguineti@iit.it an email with your name, organization explaining the research purpose for which you would like to utilize the dataset and we will provide a link to download it.
 
+The dataset is delivered as compressed zip files.
 Once downloaded and decompressed, the data has to be converted into TensorFlow's native
 [TFRecord](https://www.tensorflow.org/api_docs/python/python_io#tfrecords-format-details) format. Each TFRecord
 will contain a [TF-SequenceExample](https://github.com/tensorflow/tensorflow/blob/r1.4/tensorflow/core/example/example.proto)
@@ -80,7 +81,7 @@ python3 framecount.py $OUT_DIR 1
 
 ```
 
-To split the dataset in training, validation and test we use the lists of TFRecords provided in the list folder. 
+To split the dataset in training, validation and test we use the lists of TFRecords provided in the `lists` folder. 
 
 
 
