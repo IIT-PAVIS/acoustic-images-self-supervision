@@ -22,8 +22,6 @@ The code is organized in several folders and there is a main script as follows:
 
 - The `main` script is used for training and testing the models both in self-supervised and supervised way.
 
-![work in progress](https://cdn5.vectorstock.com/i/1000x1000/90/79/under-construction-icon-on-white-background-under-vector-19719079.jpg)
-
 ## Preparing the dataset
 
 For researchers who wish to use ACoustic Images and Videos in the Wild dataset for non-commercial research and/or educational purposes, please write to valentina.sanguineti@iit.it an email with your name, organization explaining the research purpose for which you would like to utilize the dataset and we will provide a link to download it.
